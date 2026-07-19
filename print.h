@@ -27,13 +27,51 @@
  *  or a string
  */
 
-#include <stddef.h> /* For size_t etc */
-#include <stdio.h> /* For file writes */
+/* PRINTH__* printh__ used for internals should not touched or changed
+ * PRINT_* print_* are externals and safe to use
+ */
+
+
+/* User can specify custom types as maxium types to both unsigned and signed
+ * integers but not to floating point value we only use double there
+ */
+/* Note: If user uses a C version which is different than C89 it uses intmax_t
+ * types to be fixed sized otherwise it uses size_t for unsigned and extension
+ * for signed integers
+ */
+#ifdef PRINT_USE_CUSTOM_MAX_UNSIGNED_TYPE
+typedef PRINT_USE_CUSTOM_MAX_UNSIGNED_TYPE printh__umax_t;
+#else /* PRINT_USE_CUSTOM_MAX_UNSIGNED_TYPE */
+#ifndef __STDC_VERSION__
+#include <stddef.h> /* for size_t */
+typedef size_t printh__umax_t;
+#else /* __STDC_VERSION__ */
+#include <stdint.h> /* for uintmax_t */
+typedef uintmax_t printh__umax_t;
+#endif /* __STDC_VERSION__ */
+#endif /* PRINT_USE_CUSTOM_MAX_UNSIGNED_TYPE */
+
+#ifdef PRINT_USE_CUSTOM_MAX_SIGNED_TYPE
+typedef PRINT_USE_CUSTOM_MAX_SIGNED_TYPE printh__max_t;
+#else
+#ifndef __STDC_VERSION__
+#if defined(_WIN64)
+typedef __int64 printh__max_t;
+#elif defined(_MSC_VER)
+typedef __int64 printh__max_t;
+#else /* defined(_WIN64) */
+typedef long printh__max_t;
+#endif /* defined(_WIN64) */
+#else  /* __STDC_VERSION__ */
+#include <stdint.h> /* for intmax_t */
+typedef intmax_t printh__max_t;
+#endif /* __STDC_VERSION__ */
+#endif /* PRINT_USE_CUSTOM_MAX_SIGNED_TYPE */
 
 #ifdef PRINT_USE_CAPITAL_HEX
-#define _PRINT_HEX_TABLE "0123456789ABCDEF"
+#define PRINTH__HEX_TABLE "0123456789ABCDEF"
 #else
-#define _PRINT_HEX_TABLE "0123456789abcdef"
+#define PRINTH__HEX_TABLE "0123456789abcdef"
 #endif /* PRINT_USE_CAPTIAL_HEX */
 
 #ifndef PRINT_FLOAT_SEPARATOR
@@ -48,6 +86,8 @@
 #ifndef PRINT_NEW_LINE
 #define PRINT_NEW_LINE "\n"
 #endif
+
+/* printf and printf format macros */
 
 /* Note: #define PRINT_USE_PRINTF_FOR_FP
  *        macro only sets the printf backend for floating pointer numbers
@@ -83,18 +123,22 @@
 #endif /* PRINT_DEC_FORMAT */
 #endif /* PRINT_USE_PRINTF */
 
+/* end of printf and printf format macros */
+
+/* <string.h> header macros */
+
 /* Via this macro the library uses string or basic
  * implementations of that functions or use specified functions
  */
 #ifdef PRINT_DONT_USE_STRING_H
-extern void *_print_memcpy(void *dst, const void *src, size_t n);
-extern size_t _print_strlen(const char *str);
+extern void *printh__memcpy(void *dst, const void *src, printh__umax_t n);
+extern printh__umax_t printh__strlen(const char *str);
 #ifndef PRINT_MEMCPY
-#define PRINT_MEMCPY _print_memcpy
+#define PRINT_MEMCPY printh__memcpy
 #endif /* PRINT_MEMCPY */
 
 #ifndef PRINT_STRLEN
-#define PRINT_STRLEN _print_strlen
+#define PRINT_STRLEN printh__strlen
 #endif /* PRINT_STRLEN */
 
 #else /* if PRINT_DONT_USE_STRING_H is not declared use string.h */
@@ -110,6 +154,41 @@ extern size_t _print_strlen(const char *str);
 
 #endif /* PRINT_DONT_USE_STRING_H */
 
+/* end of <string.h> macros */
+
+#ifdef PRINT_DONT_USE_STDIO_H
+
+/* If nobody sets it */
+#ifndef PRINT_FILE_TYPE
+#define PRINT_FILE_TYPE void
+#endif /* PRINT_FILE_TYPE */
+
+#else /* PRINT_DONT_USE_STDIO_H */
+#include <stdio.h>
+/* Its not mandatory to use standards if user wants to something else they can set it */
+
+/* Note: is uses a pointer not the actual type itself so forward declaration and opaque types allowed */
+#ifndef PRINT_FILE_TYPE
+#define PRINT_FILE_TYPE FILE
+#endif /* PRINT_FILE_TYPE */
+
+/* fwrite stlye signature is expected */
+#ifndef PRINT_FILE_OUT
+#define PRINT_FILE_OUT fwrite
+#endif /* PRINT_FILE_OUT */
+
+#endif /* PRINT_DONT_USE_STDIO_H */
+
+#define PRINT_DUMMY_FILE_OUT(buffer_pointer, size_of_char, amount_of_char, file_pointer) (0)
+
+#ifndef PRINT_FILE_OUT
+#error "PRINT_FILE_OUT is not defiened if you are not using please set it to dummy!"
+#endif /* PRINT_FILE_OUT */
+
+/* <stdio.h> header macros */
+
+/* end of <stdio.h> macros */
+
 #ifndef PRINT_TMP_SIZE
 /* Note: This limit will be enough for now integers representation
  *       uses maxium ~25 and fp can go up to ~40
@@ -122,47 +201,38 @@ extern size_t _print_strlen(const char *str);
  * str_pointer is a pointer to string which we store as void *str
  * write_buf is a pointer to buffer which will be written stored expected to be void *buf
  * len is a amount of items (in bytes)
- * retun value: expected a size_t return which is how many bytes are written
+ * retun value: expected a printh__umax_t or equivalent return which is how many bytes are written
  */
-#define PRINT_DUMMY_STRING_OUT(a, b, c) (0)
+#define PRINT_DUMMY_STRING_OUT(string_pointer, buffer_pointer, amount_of_bytes) (0)
 /* If we dont have a string grow or string append function dont do anything */
 #ifndef PRINT_STRING_OUT
 #error "PRINT_STRING_OUT is not defiened if you are not using please set it to dummy!"
 #endif /* PRINT_STRING_OUT */
 
-/* Needed for signed numbers with the maximum avaible architecture length */
-#if defined(_WIN64)
-typedef __int64 _print_max_ssize_t;
-#elif defined(_MSC_VER)
-typedef __int64 _print_max_ssize_t;
-#else
-typedef long _print_max_ssize_t;
-#endif
-
 /* Success should always be zero otherwise '||' chain wont work */
 enum print_error_e {
-    PRINT_SUCCESS = 0,
-    PRINT_PARTIAL,
-    PRINT_UNKNOWN_FORMAT
+    print_success = 0,
+    print_partial,
+    print_unknown_format
 };
 
-enum _print_ctx_type_e {
-    _PRINT_CTX_FILE,
-    _PRINT_CTX_BUF,
-    _PRINT_CTX_STR
+enum printh__ctx_type_e {
+    PRINTH__CTX_FILE,
+    PRINTH__CTX_BUF,
+    PRINTH__CTX_STR
 };
 
 typedef enum print_error_e print_error_t;
-typedef enum _print_ctx_type_e _print_ctx_type_t;
-typedef struct _print_ctx_s _print_ctx_t;
+typedef enum printh__ctx_type_e printh__ctx_type_t;
+typedef struct printh__ctx_s printh__ctx_t;
 
-struct _print_ctx_s {
-    _print_ctx_type_t type;
+struct printh__ctx_s {
+    printh__ctx_type_t type;
     union {
-        FILE* file;
+        PRINT_FILE_TYPE *file;
         struct {
             void *ptr;
-            size_t count;
+            printh__umax_t count;
         } buf;
         /* Use users' string pointer we dont know the type here */
         void*  str;
@@ -170,149 +240,154 @@ struct _print_ctx_s {
     /* We use this variable because we need to know
      * how much to jump in the buffer/ptr for printing functions
      */
-    size_t written;
+    printh__umax_t written;
     print_error_t status;
 };
 
-enum _print_state_e {
-    _print_state_continue = 0,
-    _print_state_stop = 1
+enum printh__state_e {
+    printh__state_continue = 0,
+    printh__state_stop = 1
 };
 
-typedef enum _print_state_e _print_state_t;
+typedef enum printh__state_e printh__state_t;
 
 /* _print_ctx_* functions uses bool if there is an error they return true(1) which in that case
  * ctx.status is set to error and via || other functions are skipped
  */
 
 /* Publicly usable ctx formaters */
-extern _print_state_t _print_ctx_string_len
-(_print_ctx_t *ctx, const char *str, size_t len);
-extern _print_state_t _print_ctx_string
-(_print_ctx_t *ctx, const char *str);
-extern _print_state_t _print_ctx_fp
-(_print_ctx_t *ctx, double num);
-extern _print_state_t _print_ctx_dec
-(_print_ctx_t *ctx, _print_max_ssize_t neg_num);
-extern _print_state_t _print_ctx_oct
-(_print_ctx_t *ctx, size_t num);
-extern _print_state_t _print_ctx_hex
-(_print_ctx_t *ctx, size_t num);
+extern printh__state_t printh__ctx_string_len
+(printh__ctx_t *ctx, const char *str, printh__umax_t len);
+extern printh__state_t printh__ctx_string
+(printh__ctx_t *ctx, const char *str);
+extern printh__state_t printh__ctx_fp
+(printh__ctx_t *ctx, double num);
+extern printh__state_t printh__ctx_dec
+(printh__ctx_t *ctx, printh__max_t neg_num);
+extern printh__state_t printh__ctx_oct
+(printh__ctx_t *ctx, printh__umax_t num);
+extern printh__state_t printh__ctx_hex
+(printh__ctx_t *ctx, printh__umax_t num);
 
 /* User should just use use_print_ctx if they want
  * they can chage the name or use the type but
  * that might broke somethings
  */
-#ifndef _PRINT_CTX_NAME
-#define _PRINT_CTX_NAME print_h_print_ctx
-#endif /* _PRINT_CTX_NAME */
-#define use_print_ctx _print_ctx_t _PRINT_CTX_NAME = {0}
+#ifndef PRINTH__CTX_NAME
+#define PRINTH__CTX_NAME print_h_print_ctx
+#endif /* PRINTH__CTX_NAME */
+#define use_print_ctx printh__ctx_t PRINTH__CTX_NAME = {0}
 
 /* Context constructors */
-#define __file_print_set(file_ptr, expr) \
-    _PRINT_CTX_NAME.type = _PRINT_CTX_FILE, _PRINT_CTX_NAME.target.file = (file_ptr), \
-    _PRINT_CTX_NAME.status = PRINT_SUCCESS, _PRINT_CTX_NAME.written = 0, \
-    _print_ctx_string(&_PRINT_CTX_NAME, "" expr "")
+#define printh__file_print_set(file_ptr, expr) \
+    PRINTH__CTX_NAME.type = PRINTH__CTX_FILE, PRINTH__CTX_NAME.target.file = (file_ptr), \
+    PRINTH__CTX_NAME.status = print_success, PRINTH__CTX_NAME.written = 0, \
+    printh__ctx_string(&PRINTH__CTX_NAME, "" expr "")
 
-#define __buf_print_set(buf_ptr, buf_count, expr) \
-    _PRINT_CTX_NAME.type = _PRINT_CTX_BUF, _PRINT_CTX_NAME.target.buf.ptr = (buf_ptr), \
-    _PRINT_CTX_NAME.target.buf.count = (buf_count), \
-    _PRINT_CTX_NAME.status = PRINT_SUCCESS, _PRINT_CTX_NAME.written = 0, \
-    _print_ctx_string(&_PRINT_CTX_NAME, "" expr "")
+#define printh__buf_print_set(buf_ptr, buf_count, expr) \
+    PRINTH__CTX_NAME.type = PRINTH_CTX_BUF, PRINTH__CTX_NAME.target.buf.ptr = (buf_ptr), \
+    PRINTH__CTX_NAME.target.buf.count = (buf_count), \
+    PRINTH__CTX_NAME.status = print_success, PRINTH__CTX_NAME.written = 0, \
+    printh__ctx_string(&PRINTH__CTX_NAME, "" expr "")
 
-#define __str_print_set(string, expr) \
-    _PRINT_CTX_NAME.type = _PRINT_CTX_STR, _PRINT_CTX_NAME.target.str = (string), \
-    _PRINT_CTX_NAME.status = PRINT_SUCCESS, _PRINT_CTX_NAME.written = 0, \
-    _print_ctx_string(&_PRINT_CTX_NAME, "" expr "")
+#define printh__str_print_set(string, expr) \
+    PRINTH__CTX_NAME.type = PRINTH_CTX_STR, PRINTH__CTX_NAME.target.str = (string), \
+    PRINTH__CTX_NAME.status = print_success, PRINTH__CTX_NAME.written = 0, \
+    printh__ctx_string(&PRINTH__CTX_NAME, "" expr "")
 
 /* Public interface for print functions */
 /* usage of *_print(out, some_variable) wont work user
  * needs to specify the type via arg_* functions
  */
 #define file_print(file, expr) \
-    (__file_print_set(file, expr), _PRINT_CTX_NAME.status)
+    (printh__file_print_set(file, expr), PRINTH__CTX_NAME.status)
 
 #define file_print_wrote(file, wrote, expr) \
-    (__file_print_set(file, expr), (wrote) = _PRINT_CTX_NAME.written, _PRINT_CTX_NAME.status)
+    (printh__file_print_set(file, expr), (wrote) = PRINTH__CTX_NAME.written, PRINTH__CTX_NAME.status)
 
 #define buf_print(buf_ptr, buf_count, expr) \
-    (__buf_print_set(buf_ptr, buf_count, expr), _PRINT_CTX_NAME.status)
+    (printh__buf_print_set(buf_ptr, buf_count, expr), PRINTH__CTX_NAME.status)
 
 #define buf_print_wrote(buf_ptr, buf_count, wrote, expr) \
-    (__buf_print_set(buf_ptr, buf_count, expr), \
-    (wrote) = _PRINT_CTX_NAME.written, _PRINT_CTX_NAME.status)
+    (printh__buf_print_set(buf_ptr, buf_count, expr), \
+    (printhwrote) = PRINTH__CTX_NAME.written, PRINTH__CTX_NAME.status)
 
 #define str_print(string, expr) \
-    (__str_print_set(string, expr), _PRINT_CTX_NAME.status)
+    (printh__str_print_set(string, expr), PRINTH__CTX_NAME.status)
 
 #define str_print_wrote(string, wrote, expr) \
-    (__str_print_set(string, expr), (wrote) = _PRINT_CTX_NAME.written, _PRINT_CTX_NAME.status)
+    (printh__str_print_set(string, expr), (wrote) = PRINTH__CTX_NAME.written, PRINTH__CTX_NAME.status)
 
 /* Same print function but with automatic new line */
 
-#define _print_append_newline() _print_ctx_string_len(&_PRINT_CTX_NAME, PRINT_NEW_LINE, 1)
+#define printh__append_newline() printh__ctx_string_len(&PRINTH__CTX_NAME, PRINT_NEW_LINE, 1)
 #define file_println(file, expr) \
-    (__file_print_set(file, expr) || _print_append_newline(), _PRINT_CTX_NAME.status)
+    (printh__file_print_set(file, expr) || printh__append_newline(), PRINTH__CTX_NAME.status)
 
 #define file_println_wrote(file, wrote, expr) \
-    (__file_print_set(file, expr) || _print_append_newline(),\
-    (wrote) = _PRINT_CTX_NAME.written, _PRINT_CTX_NAME.status)
+    (printh__file_print_set(file, expr) || printh__append_newline(),\
+    (printhwrote) = PRINTH__CTX_NAME.written, PRINTH__CTX_NAME.status)
 
 #define buf_println(buf_ptr, buf_count, expr) \
-    (__buf_print_set(buf_ptr, buf_count, expr) || _print_append_newline(),\
-    _PRINT_CTX_NAME.status)
+    (printh__buf_print_set(buf_ptr, buf_count, expr) || printh__append_newline(),\
+    PRINTH__CTX_NAME.status)
 
 #define buf_println_wrote(buf_ptr, buf_count, wrote, expr) \
-    (__buf_print_set(buf_ptr, buf_count, expr) || _print_append_newline(), \
-    (wrote) = _PRINT_CTX_NAME.written, _PRINT_CTX_NAME.status)
+    (printh__buf_print_set(buf_ptr, buf_count, expr) || printh__append_newline(), \
+    (printhwrote) = PRINTH__CTX_NAME.written, PRINTH__CTX_NAME.status)
 
 #define str_println(string, expr) \
-    (__str_print_set(string, expr) || _print_append_newline(), _PRINT_CTX_NAME.status)
+    (printh__str_print_set(string, expr) || printh__append_newline(), PRINTH__CTX_NAME.status)
 
 #define str_println_wrote(string, wrote, expr) \
-    (__str_print_set(string, expr) || _print_append_newline(), \
-    (wrote) = _PRINT_CTX_NAME.written, _PRINT_CTX_NAME.status)
+    (printh__str_print_set(string, expr) || printh__append_newline(), \
+    (wrote) = PRINTH__CTX_NAME.written, PRINTH__CTX_NAME.status)
 
 /* Formater setters - User can make their own formats by passing function and variable names */
-#define _print_format_1(func, var) \
-   "") || func(&_PRINT_CTX_NAME, var) || _print_ctx_string(&_PRINT_CTX_NAME, ""
+#define printh__print_format_1(func, var) \
+   "") || func(&PRINTH__CTX_NAME, var) || printh__ctx_string(&PRINTH__CTX_NAME, ""
 
-#define _print_format_2(func, var, var2) \
-   "") || func(&_PRINT_CTX_NAME, var, var2) || _print_ctx_string(&_PRINT_CTX_NAME, ""
+#define printh__print_format_2(func, var, var2) \
+   "") || func(&PRINTH__CTX_NAME, var, var2) || printh__ctx_string(&PRINTH__CTX_NAME, ""
 
 /* Public formats */
-#define arg_fp(num) _print_format_1(_print_ctx_fp, num)
-#define arg_hex(num) _print_format_1(_print_ctx_hex, num)
-#define arg_oct(num) _print_format_1(_print_ctx_oct, num)
-#define arg_dec(num) _print_format_1(_print_ctx_dec, num)
-#define arg_str(str) _print_format_1(_print_ctx_string, str)
-#define arg_str_len(str, len) _print_format_2(_print_ctx_string_len, str, len)
-#define arg_str_lit(str) _print_format_2(_print_ctx_string_len, str, sizeof(str) - 1)
+#define arg_fp(num) printh__print_format_1(printh__ctx_fp, num)
+#define arg_hex(num) printh__print_format_1(printh__ctx_hex, num)
+#define arg_oct(num) printh__print_format_1(printh__ctx_oct, num)
+#define arg_dec(num) printh__print_format_1(printh__ctx_dec, num)
+#define arg_str(str) printh__print_format_1(printh__ctx_string, str)
+#define arg_str_len(str, len) printh__print_format_2(printh__ctx_string_len, str, len)
+#define arg_str_lit(str) printh__print_format_2(printh__ctx_string_len, str, sizeof(str) - 1)
 
 #endif /* PRINT_H */
 
 #ifdef PRINT_IMPLEMENTATION
 
 /* Note: Will be undef at the end */
-#define _print_call_printf(count, buf, format, num) \
+#define printh__call_printf(count, buf, format, num) \
 do { \
-    size_t n = snprintf(buf, sizeof(buf), format, num); \
-    if (count < 0) { return _print_state_stop; } \
-    count = (size_t)n; \
+    printh__umax_t n = snprintf(buf, sizeof(buf), format, num); \
+    if (count < 0) { return printh__state_stop; } \
+    count = (printh__umax_t)n; \
     if (count >= sizeof(buf)) { count = sizeof(buf)-1; } \
 } while(0);
 
 /* Internal helpers */
-static char* _print_format_base
-(char* out_end, size_t num, size_t base);
-static char* _print_format_double
+#ifndef PRINT_USE_PRINTF
+extern char* printh__format_base
+(char* out_end, printh__umax_t num, printh__umax_t base);
+#endif
+
+#ifndef PRINT_USE_PRINTF_FOR_FP
+extern char* printh__format_double
 (char *end, double num);
+#endif
 
 #ifdef PRINT_DONT_USE_STRING_H
 /* Implement needed internals */
 
-void *_print_memcpy
-(void *dst, const void *src, size_t n)
+void *printh__memcpy
+(void *dst, const void *src, printh__umax_t n)
 {
     char *d = dst;
     const char *s = src;
@@ -321,130 +396,130 @@ void *_print_memcpy
     return dst;
 }
 
-size_t _print_strlen
+printh__umax_t printh__strlen
 (const char *str)
 {
-    size_t n = 0;
+    printh__umax_t n = 0;
     while(*str++) n++;
     return n;
 }
 
 #endif /* PRINT_USE_STRING_H */
 
-_print_state_t _print_ctx_string_len
-(_print_ctx_t *ctx, const char *str, size_t len)
+printh__state_t printh__ctx_string_len
+(printh__ctx_t *ctx, const char *str, printh__umax_t len)
 {
-    size_t wrote = 0, max = 0;
+    printh__umax_t wrote = 0, max = 0;
 
     switch (ctx->type) {
-        case _PRINT_CTX_FILE: {
-            wrote = fwrite(str, sizeof(char), len, ctx->target.file);
+        case PRINTH__CTX_FILE: {
+            wrote = PRINT_FILE_OUT(str, sizeof(char), len, ctx->target.file);
         } break;
-        case _PRINT_CTX_STR: {
+        case PRINTH__CTX_STR: {
             wrote = PRINT_STRING_OUT(ctx->target.str, str, len);
         } break;
-        case _PRINT_CTX_BUF: {
+        case PRINTH__CTX_BUF: {
             max = (ctx->written < ctx->target.buf.count)
                 ? ctx->target.buf.count - ctx->written : 0;
             max = (max > len) ? len : max;
             wrote = max;
             PRINT_MEMCPY((char *)ctx->target.buf.ptr + ctx->written, str, max);
         } break;
-        default: { ctx->status = PRINT_UNKNOWN_FORMAT; return _print_state_stop; }
+        default: { ctx->status = print_unknown_format; return printh__state_stop; }
     }
 
     ctx->written += wrote;
-    ctx->status = (wrote == len) ? PRINT_SUCCESS : PRINT_PARTIAL;
-    return (ctx->status) ? _print_state_stop : _print_state_continue;
+    ctx->status = (wrote == len) ? print_success : print_partial;
+    return (ctx->status) ? printh__state_stop : printh__state_continue;
 }
 
-_print_state_t _print_ctx_hex
-(_print_ctx_t *ctx, size_t num)
+printh__state_t printh__ctx_hex
+(printh__ctx_t *ctx, printh__umax_t num)
 {
-    char buf[PRINT_TMP_SIZE], *out = buf; size_t count = 0;
+    char buf[PRINT_TMP_SIZE], *out = buf; printh__umax_t count = 0;
 
 #ifdef PRINT_USE_PRINTF
-    _print_call_printf(count, buf, PRINT_HEX_FORMAT, num);
+    printh__call_printf(count, buf, PRINT_HEX_FORMAT, num);
 #else
-    out = _print_format_base(buf + PRINT_TMP_SIZE, num, 16);
+    out = printh__format_base(buf + PRINT_TMP_SIZE, num, 16);
     count = buf + PRINT_TMP_SIZE - out;
 #endif
 
-    return _print_ctx_string_len(ctx, out, count);
+    return printh__ctx_string_len(ctx, out, count);
 }
 
-_print_state_t _print_ctx_oct
-(_print_ctx_t *ctx, size_t num)
+printh__state_t _print_ctx_oct
+(printh__ctx_t *ctx, printh__umax_t num)
 {
-    char buf[PRINT_TMP_SIZE], *out = buf; size_t count = 0;
+    char buf[PRINT_TMP_SIZE], *out = buf; printh__umax_t count = 0;
 
 #ifdef PRINT_USE_PRINTF
-    _print_call_printf(count, buf, PRINT_OCT_FORMAT, num);
+    printh__call_printf(count, buf, PRINT_OCT_FORMAT, num);
 #else
-    out = _print_format_base(buf + PRINT_TMP_SIZE, num, 8);
+    out = printh__format_base(buf + PRINT_TMP_SIZE, num, 8);
     count = buf + PRINT_TMP_SIZE - out;
 #endif
 
-    return _print_ctx_string_len(ctx, out, count);
+    return printh__ctx_string_len(ctx, out, count);
 }
 
-_print_state_t _print_ctx_dec
-(_print_ctx_t *ctx, _print_max_ssize_t neg_num)
+printh__state_t printh__ctx_dec
+(printh__ctx_t *ctx, printh__max_t neg_num)
 {
     char buf[PRINT_TMP_SIZE], *out = buf;
-    size_t count = 0;
+    printh__umax_t count = 0;
 
 #ifdef PRINT_USE_PRINTF
-    _print_call_printf(count, buf, PRINT_DEC_FORMAT, neg_num);
+    printh__call_printf(count, buf, PRINT_DEC_FORMAT, neg_num);
 #else
-    size_t num = 0;
+    printh__umax_t num = 0;
     char is_negative = 0;
 
     /* Check for negative number */
     if(neg_num < 0) {
         is_negative = 1;
-        num = (size_t)(-(neg_num + 1)) + 1;
-    } else { num = (size_t)neg_num; }
+        num = (printh__umax_t)(-(neg_num + 1)) + 1;
+    } else { num = (printh__umax_t)neg_num; }
 
-    out = _print_format_base(buf + PRINT_TMP_SIZE, num, 10);
+    out = printh__format_base(buf + PRINT_TMP_SIZE, num, 10);
 
     if(is_negative) { *--out = '-'; }
     count = buf + PRINT_TMP_SIZE - out;
 #endif
 
-    return _print_ctx_string_len(ctx, out, count);
+    return printh__ctx_string_len(ctx, out, count);
 }
 
-_print_state_t _print_ctx_fp
-(_print_ctx_t *ctx, double num)
+printh__state_t printh__ctx_fp
+(printh__ctx_t *ctx, double num)
 {
     char buf[PRINT_TMP_SIZE], *out = buf;
     char is_negative = 0;
-    size_t count = 0;
+    printh__umax_t count = 0;
 
 #ifdef PRINT_USE_PRINTF_FOR_FP
-    _print_call_printf(count, buf, PRINT_FP_FORMAT, num);
+    printh__call_printf(count, buf, PRINT_FP_FORMAT, num);
 #else
     /* Check for negative number */
     if(num < 0) { is_negative = 1; num *= -1; }
-    out = _print_format_double(buf + PRINT_TMP_SIZE, num);
+    out = printh__format_double(buf + PRINT_TMP_SIZE, num);
     if(is_negative) { *--out = '-'; }
     count = buf + PRINT_TMP_SIZE - out;
 #endif
 
-    return _print_ctx_string_len(ctx, out, count);
+    return printh__ctx_string_len(ctx, out, count);
 }
 
-_print_state_t _print_ctx_string
-(_print_ctx_t *ctx, const char *str)
+printh__state_t printh__ctx_string
+(printh__ctx_t *ctx, const char *str)
 {
     /* Skip if empty string like "" which saves little bit of time */
     /* This happens a lot because of conjunctions */
-    if(str && !*str) { return _print_state_continue; }
+    if(str && !*str) { return printh__state_continue; }
     if(str) {
-        return _print_ctx_string_len(ctx, str, PRINT_STRLEN(str));
+        return printh__ctx_string_len(ctx, str, PRINT_STRLEN(str));
     }
-    return _print_ctx_string_len(ctx, PRINT_NULL_STRING, sizeof(PRINT_NULL_STRING) - 1);
+    return printh__ctx_string_len(ctx, PRINT_NULL_STRING, sizeof(PRINT_NULL_STRING) - 1);
 }
 
 /* TODO: This will be slow because we can not do masking for hex and oct
@@ -455,10 +530,10 @@ _print_state_t _print_ctx_string
  *       the end of the buffer a normal integer representation wont pass ~25 characters
  *       and we are using 64(default one) so it should be good.
  */
-static char* _print_format_base
-(char *end, size_t num, size_t base)
+char* printh__format_base
+(char *end, printh__umax_t num, printh__umax_t base)
 {
-    static const char hex[] = _PRINT_HEX_TABLE;
+    static const char hex[] = PRINTH__HEX_TABLE;
     do {
         *--end = hex[num % base];
         num /= base;
@@ -466,17 +541,19 @@ static char* _print_format_base
     return end;
 }
 
-static char* _print_format_double(char *end, double num)
+/* Note: Dont use this function its very primitive */
+char* printh__format_double(char *end, double num)
 {
-    size_t integer;
-    size_t fraction;
-    int i;
-    const char *sep = PRINT_FLOAT_SEPARATOR;
-    sep += sizeof(PRINT_FLOAT_SEPARATOR) - 1;
+    printh__umax_t integer = 0;
+    printh__umax_t fraction = 0;
+    int i = 0;
+    /* Cut -2 one for null termination one for indexing */
+    printh__umax_t len = sizeof(PRINT_FLOAT_SEPARATOR) - 2;
+    const char *sep = PRINT_FLOAT_SEPARATOR + len;
 
-    integer = (size_t)num;
+    integer = (printh__umax_t)num;
     num -= (double)integer;
-    fraction = (size_t)(num * 1000000.0 + 0.5);
+    fraction = (printh__umax_t)(num * 1000000.0 + 0.5);
 
     /* Handle rounding overflow */
     if (fraction >= 1000000) {
@@ -489,12 +566,10 @@ static char* _print_format_double(char *end, double num)
         fraction /= 10;
     }
 
-    while((*--end = *--sep));
-    /* Take back the null byte */
-    end++;
+    while((*--end = *sep--) && len--);
 
-    return _print_format_base(end, integer, 10);
+    return printh__format_base(end, integer, 10);
 }
 
-#undef _print_call_printf
+#undef printh__call_printf
 #endif /* PRINT_IMPLEMENTATION */
