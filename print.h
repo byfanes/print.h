@@ -285,13 +285,13 @@ extern printh__state_t printh__ctx_hex
     printh__ctx_string(&PRINTH__CTX_NAME, "" expr "")
 
 #define printh__buf_print_set(buf_ptr, buf_count, expr) \
-    PRINTH__CTX_NAME.type = PRINTH_CTX_BUF, PRINTH__CTX_NAME.target.buf.ptr = (buf_ptr), \
+    PRINTH__CTX_NAME.type = PRINTH__CTX_BUF, PRINTH__CTX_NAME.target.buf.ptr = (buf_ptr), \
     PRINTH__CTX_NAME.target.buf.count = (buf_count), \
     PRINTH__CTX_NAME.status = print_success, PRINTH__CTX_NAME.written = 0, \
     printh__ctx_string(&PRINTH__CTX_NAME, "" expr "")
 
 #define printh__str_print_set(string, expr) \
-    PRINTH__CTX_NAME.type = PRINTH_CTX_STR, PRINTH__CTX_NAME.target.str = (string), \
+    PRINTH__CTX_NAME.type = PRINTH__CTX_STR, PRINTH__CTX_NAME.target.str = (string), \
     PRINTH__CTX_NAME.status = print_success, PRINTH__CTX_NAME.written = 0, \
     printh__ctx_string(&PRINTH__CTX_NAME, "" expr "")
 
@@ -310,7 +310,7 @@ extern printh__state_t printh__ctx_hex
 
 #define buf_print_wrote(buf_ptr, buf_count, wrote, expr) \
     (printh__buf_print_set(buf_ptr, buf_count, expr), \
-    (printhwrote) = PRINTH__CTX_NAME.written, PRINTH__CTX_NAME.status)
+    (hwrote) = PRINTH__CTX_NAME.written, PRINTH__CTX_NAME.status)
 
 #define str_print(string, expr) \
     (printh__str_print_set(string, expr), PRINTH__CTX_NAME.status)
@@ -326,7 +326,7 @@ extern printh__state_t printh__ctx_hex
 
 #define file_println_wrote(file, wrote, expr) \
     (printh__file_print_set(file, expr) || printh__append_newline(),\
-    (printhwrote) = PRINTH__CTX_NAME.written, PRINTH__CTX_NAME.status)
+    (wrote) = PRINTH__CTX_NAME.written, PRINTH__CTX_NAME.status)
 
 #define buf_println(buf_ptr, buf_count, expr) \
     (printh__buf_print_set(buf_ptr, buf_count, expr) || printh__append_newline(),\
@@ -334,7 +334,7 @@ extern printh__state_t printh__ctx_hex
 
 #define buf_println_wrote(buf_ptr, buf_count, wrote, expr) \
     (printh__buf_print_set(buf_ptr, buf_count, expr) || printh__append_newline(), \
-    (printhwrote) = PRINTH__CTX_NAME.written, PRINTH__CTX_NAME.status)
+    (wrote) = PRINTH__CTX_NAME.written, PRINTH__CTX_NAME.status)
 
 #define str_println(string, expr) \
     (printh__str_print_set(string, expr) || printh__append_newline(), PRINTH__CTX_NAME.status)
