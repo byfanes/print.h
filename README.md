@@ -91,7 +91,6 @@ Built-in formatters:
 | `arg_hex(num)`          | Write a hexadecimal integer            |
 | `arg_oct(num)`          | Write an octal integer                 |
 | `arg_fp(num)`           | Write a floating point number (basic)  |
-| ----------------------- | -------------------------------------- |
 
 ## Custom Output
 
@@ -118,19 +117,19 @@ The following macros can be defined before including the header:
 ### Custom floating separator
 
 ```c
-#define PRINT_FLOAT_SEPARATOR ","
+#define PRINT_FLOAT_SEPARATOR "."
 ```
 
 ### Custom null string
 
 ```c
-#define PRINT_NULL_STRING "(nil)"
+#define PRINT_NULL_STRING "(null)"
 ```
 
 ### Custom newline
 
 ```c
-#define PRINT_NEW_LINE "\r\n"
+#define PRINT_NEW_LINE "\n"
 ```
 
 ### Use libc printf backend for floating point numbers
@@ -170,7 +169,7 @@ Other files should only include:
 
 The library uses a context-based pipeline system. Formatting functions return a state that allows the next operation to continue or stops execution when an error occurs.
 
-This allows expressions like:
+The `arg_*` macros expand into a sequence of small writing operations. For example:
 
 ```c
 file_print(stdout,
@@ -179,4 +178,22 @@ file_print(stdout,
 );
 ```
 
-to expand into a sequence of small writing operations while keeping the API lightweight.
+is internally converted into a chain of context write operations.
+
+`arg_str_lit()` is optimized for string literals because it calculates the string length at compile time using `sizeof`, avoiding a runtime `PRINT_STRLEN` call. This can be beneficial when many literal strings are written.
+
+For example:
+
+```c
+arg_str("Hello")
+```
+
+requires finding the length at runtime, while:
+
+```c
+arg_str_lit("Hello")
+```
+
+already knows the length during compilation.
+
+This keeps the API lightweight while allowing multiple formatting operations to be combined into a single expression.
